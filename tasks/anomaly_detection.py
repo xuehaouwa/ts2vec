@@ -3,6 +3,7 @@ import time
 from sklearn.metrics import f1_score, precision_score, recall_score
 import bottleneck as bn
 
+
 # consider delay threshold and missing segments
 def get_range_proba(predict, label, delay=7):
     splits = np.where(label[1:] != label[:-1])[0] + 1
@@ -80,9 +81,10 @@ def np_shift(arr, num, fill_value=np.nan):
     return result
 
 
-def eval_anomaly_detection(model, all_train_data, all_train_labels, all_train_timestamps, all_test_data, all_test_labels, all_test_timestamps, delay):
+def eval_anomaly_detection(model, all_train_data, all_train_labels, all_train_timestamps, all_test_data,
+                           all_test_labels, all_test_timestamps, delay):
     t = time.time()
-    
+
     all_train_repr = {}
     all_test_repr = {}
     all_train_repr_wom = {}
@@ -111,7 +113,7 @@ def eval_anomaly_detection(model, all_train_data, all_train_labels, all_train_ti
         ).squeeze()
         all_train_repr_wom[k] = full_repr_wom[:len(train_data)]
         all_test_repr_wom[k] = full_repr_wom[len(train_data):]
-        
+
     res_log = []
     labels_log = []
     timestamps_log = []
@@ -136,22 +138,23 @@ def eval_anomaly_detection(model, all_train_data, all_train_labels, all_train_ti
         test_res = (test_err_adj > thr) * 1
 
         for i in range(len(test_res)):
-            if i >= delay and test_res[i-delay:i].sum() >= 1:
+            if i >= delay and test_res[i - delay:i].sum() >= 1:
                 test_res[i] = 0
 
         res_log.append(test_res)
         labels_log.append(test_labels)
         timestamps_log.append(test_timestamps)
     t = time.time() - t
-    
+
     eval_res = eval_ad_result(res_log, labels_log, timestamps_log, delay)
     eval_res['infer_time'] = t
     return res_log, eval_res
 
 
-def eval_anomaly_detection_coldstart(model, all_train_data, all_train_labels, all_train_timestamps, all_test_data, all_test_labels, all_test_timestamps, delay):
+def eval_anomaly_detection_coldstart(model, all_train_data, all_train_labels, all_train_timestamps, all_test_data,
+                                     all_test_labels, all_test_timestamps, delay):
     t = time.time()
-    
+
     all_data = {}
     all_repr = {}
     all_repr_wom = {}
@@ -172,7 +175,7 @@ def eval_anomaly_detection_coldstart(model, all_train_data, all_train_labels, al
             sliding_padding=200,
             batch_size=256
         ).squeeze()
-        
+
     res_log = []
     labels_log = []
     timestamps_log = []
@@ -180,25 +183,24 @@ def eval_anomaly_detection_coldstart(model, all_train_data, all_train_labels, al
         data = all_data[k]
         labels = np.concatenate([all_train_labels[k], all_test_labels[k]])
         timestamps = np.concatenate([all_train_timestamps[k], all_test_timestamps[k]])
-        
+
         err = np.abs(all_repr_wom[k] - all_repr[k]).sum(axis=1)
         ma = np_shift(bn.move_mean(err, 21), 1)
         err_adj = (err - ma) / ma
-        
+
         MIN_WINDOW = len(data) // 10
         thr = bn.move_mean(err_adj, len(err_adj), MIN_WINDOW) + 4 * bn.move_std(err_adj, len(err_adj), MIN_WINDOW)
         res = (err_adj > thr) * 1
-        
+
         for i in range(len(res)):
-            if i >= delay and res[i-delay:i].sum() >= 1:
+            if i >= delay and res[i - delay:i].sum() >= 1:
                 res[i] = 0
 
         res_log.append(res[MIN_WINDOW:])
         labels_log.append(labels[MIN_WINDOW:])
         timestamps_log.append(timestamps[MIN_WINDOW:])
     t = time.time() - t
-    
+
     eval_res = eval_ad_result(res_log, labels_log, timestamps_log, delay)
     eval_res['infer_time'] = t
     return res_log, eval_res
-
